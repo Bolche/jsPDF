@@ -47,6 +47,10 @@
     jsPDFAPI.setHeaderFunction = function (func) {
         headerFunction = func;
     };
+    
+    jsPDFAPI.setMargin = function (marg) {
+        margin = marg;
+    }
 
     jsPDFAPI.getTextDimensions = function (txt) {
         fontName = this.internal.getFont().fontName;
@@ -111,7 +115,8 @@
         }
         
         if (txt[0] !== '') {
-            if (this.printingHeaderRow) {
+            if (this.printingHeaderRow || txt.fill) {
+                this.setFillColor(200,200,200);
                 this.rect(x, y, w, h, 'FD');
             } else {
                 this.rect(x, y, w, h);
@@ -308,8 +313,16 @@
             lineHeight = this.calculateLineHeight(headerNames, columnWidths, model);
             
             for (j = 0, jln = headerNames.length; j < jln; j += 1) {
+                var width;
                 header = headerNames[j];
-                this.cell(margin, margin, columnWidths[header], lineHeight, model[header], i + 2, headers[j].align);
+                width = columnWidths[header];
+                if (model[header].colspan > 1) {
+                    for (var k = 1; k < model[header].colspan; k++) {
+                        width += columnWidths[ headerNames[j+k] ];
+                    }
+                    j += model[header].colspan - 1;
+                }
+                this.cell(margin, margin, width, lineHeight, model[header], i + 2, model[header].align);
             }
         }
 
@@ -323,10 +336,17 @@
      * @param {Object[]} model is the line of data we want to calculate the height of
      */
     jsPDFAPI.calculateLineHeight = function (headerNames, columnWidths, model) {
-        var header, lineHeight = 0;
+        var header, lineHeight = 0, splitText;
         for (var j = 0; j < headerNames.length; j++) {
             header = headerNames[j];
-            model[header] = this.splitTextToSize(String(model[header]), columnWidths[header] - padding);
+            splitText = this.splitTextToSize(String(model[header]), columnWidths[header] - padding);
+            if (model[header] !== undefined) {
+                splitText.colspan = model[header].colspan;
+                splitText.rowspan = model[header].rowspan;
+                splitText.align = model[header].align;
+                splitText.fill = model[header].fill;
+            }
+            model[header] = splitText;
             var h = this.internal.getLineHeight() * model[header].length + padding;
             if (h > lineHeight)
                 lineHeight = h;
@@ -366,8 +386,6 @@
             
         this.setFontStyle('bold');
         for (i = 0, ln = this.tableHeaderRow.length; i < ln; i += 1) {
-            this.setFillColor(200,200,200);
-            
             tableHeaderCell = this.tableHeaderRow[i];
             tmpArray        = [].concat(tableHeaderCell);
 
